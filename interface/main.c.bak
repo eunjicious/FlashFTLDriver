@@ -19,48 +19,29 @@ int main(int argc,char* argv[]){
 	inf_init(0,0,0,NULL);
 	
 	/*initialize the cutom bench mark*/
-	bench_init(); // number of benches 
+	bench_init();
+
 
 	/*adding benchmark type for testing*/
-//#ifdef EUNJI
+#ifdef EUNJI
 	char trc_fname[100];
 	strcpy(trc_fname, "./trace/test.trc");
 
-	//bench_add(RANDSET,0,RANGE,RANGE*2, NULL);
-//	bench_add(RANDSET,0,100,200, NULL);
-//	bench_add(TRACE,0,0,0, trc_fname);
-	bench_add(TRACE, 0, RANGE, 0, trc_fname);
-	run_bench();
-
-	// 어차피 get_bench 에서 type 에 따라 다르게 읽어옴. 
-
-#if 0
-
-	bench_t bench;
-	int idx = 0;
-
-	while(bench = get_bench(idx))
-	{
-		
-
-
-	}
-
+	bench_add_with_trace(TRACE, trc_fname);
 #endif
 
- 
-
 #if 0
-	bench_op *op;
-	while((op=get_bench())){
-		if(op->type==FS_SET_T){
-			inf_make_req(op->type,op->key,NULL,op->length,op->mark);
+	bench_add(RANDSET,0,RANGE,RANGE*2);
+
+	bench_value *value;
+	while((value=get_bench())){
+		if(value->type==FS_SET_T){
+			inf_make_req(value->type,value->key,NULL,value->length,value->mark);
 		}
-		else if(op->type==FS_GET_T){
-			inf_make_req(op->type,op->key,NULL,op->length,op->mark);
+		else if(value->type==FS_GET_T){
+			inf_make_req(value->type,value->key,NULL,value->length,value->mark);
 		}
 	}
-//#endif
 #endif
 
 	inf_free();

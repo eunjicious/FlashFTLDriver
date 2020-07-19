@@ -1,6 +1,8 @@
 #ifndef __H_TYPES__
 #define __H_TYPES__
 
+#define EUNJI
+
 #define FS_SET_T 1
 #define FS_GET_T 2
 #define FS_DELETE_T 3 
@@ -42,13 +44,22 @@ typedef enum{
 	block_he
 }lower_status;
 
-
+#ifdef EUNJI
+typedef enum{
+	SEQGET,SEQSET,SEQRW,
+	RANDGET,RANDSET,
+	RANDRW,MIXED,SEQLATENCY,RANDLATENCY,
+	NOR,FILLRAND,
+	TRACE
+}bench_type;
+#else
 typedef enum{
 	SEQGET,SEQSET,SEQRW,
 	RANDGET,RANDSET,
 	RANDRW,MIXED,SEQLATENCY,RANDLATENCY,
 	NOR,FILLRAND
 }bench_type;
+#endif
 
 typedef enum{
 	MASTER_SEGMENT,MASTER_BLOCK,MASTER_PAGE

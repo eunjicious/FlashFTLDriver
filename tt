@@ -1,0 +1,2 @@
+g++ -fPIC -Wall -Dposix_memory  -Wno-write-strings -Wno-sign-compare -Wno-unused-function -DLARGEFILE64_SOURCE -D_GNU_SOURCE -DSLC -Dbase -Wno-unused-but-set-variable -DCHECKINGTIME  -rdynamic -Wno-pointer-arith -g -fsanitize=address   -DPage_ftl  -std=c++11 -Dposix_memory -DPage_ftl -Dinterface -D_DEFAULT_SOURCE -D_BSD_SOURCE -DBENCH -DCDF  -c bench/bench.c -o bench/bench.o -lpthread -lm 
+Makefile:175: recipe for target 'bench/bench.o' failed

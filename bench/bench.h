@@ -3,7 +3,11 @@
 #include "../include/settings.h"
 #include "../include/container.h"
 #include "measurement.h"
+#include "../interface/interface.h"
 #include <stdio.h>
+#include <assert.h>
+#include <stdlib.h>
+#include <string.h>
 
 #define PRINTPER 1
 #define ALGOTYPE 300
@@ -18,6 +22,8 @@
 	(((VALUESIZE==-1)?(rand()%(NPCINPAGE)-1)+1:VALUESIZE)*PIECE)
 
 #define BENCHSETSIZE (1024+1)
+
+// host request 
 typedef struct{
 	FSTYPE type;
 	KEYT key;
@@ -25,14 +31,20 @@ typedef struct{
 	uint32_t range;
 	uint32_t length;
 	int mark;
-}bench_value;
+}bench_op;
 
 typedef struct{
 	uint32_t start;
 	uint32_t end;
-	uint64_t number;
+	uint64_t ops;
 	bench_type type;
-}bench_meta;
+//#ifdef EUNJI
+	char trc_fname[100];
+	FILE* trc_fp;
+//#endif
+
+}bench_t;
+//}bench_t;
 
 typedef struct{
 	uint64_t total_micro;
@@ -53,20 +65,27 @@ typedef struct{
 	uint64_t read_cnt,write_cnt;
 	bench_ftl_time ftl_poll[ALGOTYPE][LOWERTYPE];
 	MeasureTime bench;
-}bench_data;
+}bench_stat_t;
 
+
+// bench 
 typedef struct{
-	bench_value *body[BENCHSETSIZE];
-	bench_value **dbody;
+	bench_op *body[BENCHSETSIZE];
+	bench_op **dbody;
+
 	uint32_t bech;
 	uint32_t benchsetsize;
 	uint64_t nth_bench;
-	volatile uint64_t n_num;//request throw num
-	volatile uint64_t m_num;
-	volatile uint64_t r_num;//request end num
+
+	volatile uint64_t tot_ops;//request to be thrown 
+	volatile uint64_t issued_ops;//request throw num
+	volatile uint64_t completed_ops;//request end num
+	//volatile uint64_t m_num;//request to be thrown 
+	//volatile uint64_t n_num;//request throw num
+	//volatile uint64_t r_num;//request end num
 	bool finish;
 	bool empty;
-	bool ondemand;
+//	bool ondemand;
 	int mark;
 	uint64_t notfound;
 	uint64_t write_cnt;
@@ -76,26 +95,32 @@ typedef struct{
 	MeasureTime benchTime;
 	MeasureTime benchTime2;
 	uint64_t cache_hit;
-}monitor;
 
+} bench_monitor_t;
+
+// bench has multiple workloads. 
 typedef struct{
-	int n_num;
-	int m_num;
-	monitor *m;
-	bench_meta *meta;
-	bench_data *datas;
+	int bench_num;
+	//int n_fill;
+	//int n_curr;
+
+	// workload set 
+	bench_t *bench;
+	bench_monitor_t *bench_mon;
+	bench_stat_t *bench_stat;
 	lower_info *li;
 	uint32_t error_cnt;
-}master;
+}bench_master_t;
 
 void bench_init();
-void bench_add(bench_type type,uint32_t start, uint32_t end,uint64_t number);
-bench_value* get_bench();
+void bench_add(bench_type type,uint32_t start, uint32_t end,uint64_t number, char* trc_fname);
+//bench_op* get_bench();
+
 void bench_refresh(bench_type, uint32_t start, uint32_t end, uint64_t number);
 void bench_free();
 
 void bench_print();
-void bench_li_print(lower_info *,monitor *);
+void bench_li_print(lower_info *,bench_monitor_t *);
 bool bench_is_finish_n(int n);
 bool bench_is_finish();
 
@@ -109,25 +134,28 @@ void bench_custom_start(MeasureTime *mt,int idx);
 void bench_custom_A(MeasureTime *mt,int idx);
 void bench_custom_print(MeasureTime *mt, int idx);
 int bench_set_params(int argc, char **argv,char **targv);
-bench_value* get_bench_ondemand();
+//bench_op* get_bench_with_synth();	// EUNJI
+void do_bench_with_synth(int idx); // EUNJI 
+void do_bench_with_trace(int idx); // EUNJI 
+void run_bench();
 
 #ifdef CDF
-void bench_cdf_print(uint64_t, uint8_t istype, bench_data*);
+void bench_cdf_print(uint64_t, uint8_t istype, bench_stat_t*);
 #endif
-void bench_update_ftltime(bench_data *_d, request *const req);
-void bench_type_cdf_print(bench_data *_d);
+void bench_update_ftltime(bench_stat_t *_d, request *const req);
+void bench_type_cdf_print(bench_stat_t *_d);
 void free_bnech_all();
-void free_bench_one(bench_value *);
+void free_bench_one(bench_op *);
 #endif
 
-void seqget(uint32_t, uint32_t,monitor *);
-void seqset(uint32_t,uint32_t,monitor*);
-void seqrw(uint32_t,uint32_t,monitor *);
-void randget(uint32_t,uint32_t,monitor*);
-void fillrand(uint32_t,uint32_t,monitor*);
-void randset(uint32_t,uint32_t,monitor*);
-void randrw(uint32_t,uint32_t,monitor*);
-void mixed(uint32_t,uint32_t,int percentage,monitor*);
+void seqget(uint32_t, uint32_t,bench_monitor_t *);
+void seqset(uint32_t,uint32_t,bench_monitor_t*);
+void seqrw(uint32_t,uint32_t,bench_monitor_t *);
+void randget(uint32_t,uint32_t,bench_monitor_t*);
+void fillrand(uint32_t,uint32_t,bench_monitor_t*);
+void randset(uint32_t,uint32_t,bench_monitor_t*);
+void randrw(uint32_t,uint32_t,bench_monitor_t*);
+void mixed(uint32_t,uint32_t,int percentage,bench_monitor_t*);
 int my_itoa(uint32_t key, char **_target);
 
 

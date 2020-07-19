@@ -42,7 +42,8 @@
 
 #define GIGAUNIT 8L
 #define TOTALSIZE (GIGAUNIT*G)
-#define OP 80
+//#define OP 80 // overprovisioning
+#define OP 10
 #define REALSIZE (512L*G)
 #define DEVSIZE (64L * G)
 #define PAGESIZE (8*K)

@@ -67,8 +67,7 @@ void bench_init(){
 	bm->li=(lower_info*)malloc(sizeof(lower_info)*BENCHNUM);
 	memset(bm->li,0,sizeof(lower_info)*BENCHNUM);
 
-	bm->bench_num=0; 
-	//bm->n_curr=0; 
+	bm->n_fill=0; bm->n_curr=0; 
 	pthread_mutex_init(&bench_lock,NULL);
 
 	for(int i=0; i<BENCHNUM; i++){
@@ -80,23 +79,85 @@ void bench_init(){
 	bm->error_cnt=0;
 }
 
+// fill bench data 
+void bench_make_data(){
+	int idx=bm->n_curr;
+	bench_t *_meta=&bm->bench[idx];
+	bench_stat_t *_d=&bm->bench_stat[idx];
+	bench_monitor_t * _m=&bm->bench_mon[idx];
+	_m->mark=idx;
+	_m->bech=_meta->ops/(BENCHSETSIZE-1)+(_meta->ops%(BENCHSETSIZE-1)?1:0);
+	_m->benchsetsize=(BENCHSETSIZE-1);
+	if(_meta->type==NOR){
+		printf("not fixed test!\n");
+		return;
+	}
+	printf("%d X %d = %d, answer=%lu\n",_m->bech,_m->benchsetsize,_m->bech*_m->benchsetsize,_meta->ops);
+	for(uint32_t i=0; i<_m->benchsetsize; i++){
+		_m->body[i]=(bench_op*)malloc(sizeof(bench_op)*_m->bech);
+	}
+
+	_m->issued_ops=0;
+	_m->completed_ops=0;
+	_m->empty=false;
+	_m->tot_ops=_meta->ops;
+	_m->type=_meta->type;
+	uint32_t start=_meta->start;
+	uint32_t end=_meta->end;
+	switch(_meta->type){
+		case SEQGET:
+			seqget(start,end,_m);
+			break;
+		case SEQSET:
+			seqset(start,end,_m);
+			break;
+		case RANDGET:
+			randget(start,end,_m);
+			break;
+		case RANDRW:
+			randrw(start,end,_m);
+			break;
+		case SEQRW:
+			seqrw(start,end,_m);
+			break;
+		case RANDSET:
+			randset(start,end,_m);
+			break;
+		case MIXED:
+			mixed(start,end,50,_m);
+			break;
+		case FILLRAND:
+			fillrand(start,end,_m);
+			break;
+#ifndef KVSSD
+		case SEQLATENCY:
+			seq_latency(start,end,50,_m);
+			break;
+		case RANDLATENCY:
+			rand_latency(start,end,50,_m);
+			break;
+#endif
+		default:
+			printf("making data failed\n");
+			break;
+	}
+	_d->read_cnt=_m->read_cnt;
+	_d->write_cnt=_m->write_cnt;
+	measure_init(&_m->benchTime);
+	MS(&_m->benchTime);
+}
+
 // EUNJI
-//void add_bench(bench_type type, uint32_t start, uint32_t end, uint64_t ops){
+//void bench_add(bench_type type, uint32_t start, uint32_t end, uint64_t ops){
 void bench_add(bench_type type, uint32_t start, uint32_t end, uint64_t ops, char* trc_fname)
 {
-	int idx = bm->bench_num;
-	bm->bench_num++;
+	int idx = bm->n_fill;
+	bm->n_fill++;
 
 	bm->bench[idx].type = type;
-	bm->bench[idx].start = start;
-	bm->bench[idx].end = end;
 
 	// trace-driven 
 	if(type == TRACE){
-		char cmd[20];
-		uint32_t lba;
-		int ops = 0;
-
 		assert(trc_fname);
 		strcpy(bm->bench[idx].trc_fname, trc_fname);
 
@@ -107,15 +168,11 @@ void bench_add(bench_type type, uint32_t start, uint32_t end, uint64_t ops, char
 			return;
 		}
 		bm->bench[idx].trc_fp = fp;
-
-		fseek(fp, 0, SEEK_SET);
-		while(fscanf(fp, "%s %d\n", cmd, &lba) != EOF) ops++;
-		fseek(fp, 0, SEEK_SET);
-
-		bm->bench[idx].ops = ops;
 	}
 	// synthetic 
 	else {
+		bm->bench[idx].start = start;
+		bm->bench[idx].end = end;
 		bm->bench[idx].ops = ops%2?(ops/2)*2:ops;
 	}
 
@@ -140,8 +197,6 @@ void bench_add(bench_type type, uint32_t start, uint32_t end, uint64_t ops, char
 #endif
 }
 
-
-// bench_free 
 void bench_free(){
 	free(bm->bench_mon);
 	free(bm->bench);
@@ -150,13 +205,78 @@ void bench_free(){
 	free(bm);
 }
 
+//EUNJI 
+bench_op* get_bench_with_trace()
+{
+	
+	
+	return NULL;
+}
 
-#if 0
+bench_op* __get_bench(){
+	bench_monitor_t * _m=&bm->bench_mon[bm->n_curr];
+	if(_m->issued_ops==0){
+		bench_make_data();
+	}
+	if(_m->issued_ops==_m->tot_ops){
+		while(!bench_is_finish_n(bm->n_curr)){
+			write_stop = false;
+        }
+		printf("\rtesting...... [100%%] done!\n");
+		printf("\n");
+        //sleep(5);
+		
+		for(int i=0; i<BENCHSETSIZE; i++){
+			free(_m->body[i]);
+		}
+		bm->n_curr++;
+		if(bm->n_curr == bm->n_fill)
+			return NULL;
+	
+		int type=bm->bench[bm->n_curr].type;
+		switch(type){
+			case SEQGET:
+			case SEQSET:
+			case RANDSET:
+			case RANDGET:
+				return get_bench_ondemand();
+		}
+
+		bench_make_data();
+		_m=&bm->bench_mon[bm->n_curr];
+	}
+
+	if(_m->tot_ops<100){
+		float body=_m->tot_ops;
+		float head=_m->issued_ops;
+		printf("\r testing.....[%f%%]",head/body*100);
+	}
+	else if(_m->issued_ops%(_m->tot_ops<100?_m->tot_ops:PRINTPER*(_m->tot_ops/10000))==0){
+#ifdef PROGRESS
+		printf("\r testing...... [%.2lf%%]",(double)(_m->issued_ops)/(_m->tot_ops/100));
+		fflush(stdout);
+#endif
+	}
+
+    if (_m->issued_ops == _m->tot_ops -1) {
+        last_ack = true;
+    }
+	
+	
+	bench_op *res=&_m->body[_m->issued_ops/_m->bech][_m->issued_ops%_m->bech];
+	if(_m->issued_ops%_m->bech==0 && _m->issued_ops/_m->bech>1){
+	//	printf("%d %p org:%p\n",_m->issued_ops/_m->bech-1,&_m->body[_m->issued_ops/_m->bech-1],_m->body);
+		free(_m->body[_m->issued_ops/_m->bech-1]);
+		_m->body[_m->issued_ops/_m->bech-1]=NULL;
+	}
+	_m->issued_ops++;
+	return res;
+}
+
 bench_op *bench_make_ondemand(){
 	int idx=bm->n_curr;
 	bench_t *_meta=&bm->bench[idx];
 	bench_monitor_t * _m=&bm->bench_mon[idx];
-
 	if(!_m->tot_ops){
 		_m->issued_ops=0;
 		_m->completed_ops=0;
@@ -210,50 +330,27 @@ bench_op *bench_make_ondemand(){
 #endif
 	return op;
 }
-#endif
 
-bench_op *get_bench_with_synth(){
-#if 0
-	bench_op *op;
-	bench_monitor_t * bmon;
-	int idx; 
+bench_op *get_bench_ondemand(){
 
+	bench_op *op=NULL;
+	bench_monitor_t * _m=&bm->bench_mon[bm->n_curr];
+	if(_m->issued_ops && _m->issued_ops==_m->tot_ops){
+		while(!bench_is_finish_n(bm->n_curr)){
+			write_stop = false;
+        }
+		printf("\rtesting...... [100%%] done!\n");
+		printf("\n");
+        //sleep(5);
 
-	// run benchmarks 
-	for (idx = 0; idx < bm->bench_num; idx++) {
-
-		bmon = &bm->bench_mon[idx];
-		assert(bmon);
-
-		bmon->issued_ops = 0;
-		bmon->completed_ops = 0;
-		bmon->empty = false;
-		bmon->tot_ops = bm->ops;
-		bmon->ondemand = true;
-		bmon->type = bm->type;
-		bmon->dbody=(bench_op**)malloc(sizeof(bench_op*)*bm->ops);
-		measure_init(&bmon->benchTime);
-		MS(&bmon->benchTime);
+		free(_m->dbody);
+		bm->n_curr++;
+		if(bm->n_curr==bm->n_fill)
+			return NULL;
+		_m=&bm->bench_mon[bm->n_curr];
+	}
 
 
-		while(1) {
-
-			// check finished 
-			if(bmon->issued_ops == bmon->tot_ops){
-				while(!bench_is_finish_n(bm->n_curr)){
-						write_stop = false;
-				}
-				printf("\rtesting...... [100%%] done!\n");
-				printf("\n");
-				//sleep(5);
-
-				free(mon->dbody);
-
-				break;
-			}
-
-
-#if 0
 	if(_m->tot_ops<100){
 		float body=_m->tot_ops;
 		float head=_m->issued_ops;
@@ -265,104 +362,47 @@ bench_op *get_bench_with_synth(){
 		fflush(stdout);
 #endif
 	}
-#endif
+
     if (_m->issued_ops == _m->tot_ops -1) {
         last_ack = true;
     }
 
-		op = bench_make_ondemand();
-		mon->issued_ops++;
-
-		return op;
-#endif
-	return NULL;
-}
-
-//EUNJI 
-void do_bench_with_synth(int idx)
-{
-
+	op=bench_make_ondemand();
+	_m->issued_ops++;
+	return op;
 }
 
 
-//bench_op* get_bench_with_trace()
-void do_bench_with_trace(int idx)
-{
-	printf("do_bench_with_trace\n");
 
-	bench_t* bench = &bm->bench[idx];
-	bench_monitor_t* bmon = &bm->bench_mon[idx];
-	char cmd[10];
-	uint32_t lba;
-	FILE*fp = bench->trc_fp;
-	
-	bmon->issued_ops = 0;
-	bmon->completed_ops = 0;
-	bmon->empty = false;
-	bmon->tot_ops = bench->ops;
-//	bmon->ondemand = true;
-	bmon->type = bench->type;
-	//bmon->dbody=(bench_op**)malloc(sizeof(bench_op*)*bm->ops);
-	measure_init(&bmon->benchTime);
-	MS(&bmon->benchTime);
-
-	while(!(fscanf(fp, "%s %d\n", cmd, &lba) == EOF)) 
-	{
-		printf("%s %d\n", cmd, lba);
-		uint32_t key = (lba + bench->start) % (bench->end);
-		uint32_t length = PAGESIZE;
-		int mark = idx;
-
-		if(cmd[0] == 'R')	{
-			inf_make_req(FS_GET_T, key, NULL, length, mark);
-		}
-		else if(cmd[0] == 'W') {
-			inf_make_req(FS_SET_T, key, NULL, length, mark);
-		}
-#if 0
-		else if(cmd[0] == 'S') op.type = FS_FLUSH_T;
-		else {
-			printf("Unknown cmd: %s\n", cmd);
-			continue;
-		}
-#endif
-
-		bmon->issued_ops++;
-
+bench_op* get_bench(){
+	int idx=bm->n_curr;
+	bench_t *_meta=&bm->bench[idx];
+	switch(_meta->type){
+		case SEQGET:
+		case SEQSET:
+		case RANDSET:
+		case RANDGET:
+			return get_bench_ondemand();
+		case TRACE: // EUNJI 
+			return get_bench_with_trace();
+		default:
+			return __get_bench();
 	}
-	return;
 }
-
-// run_bench 
-void run_bench()
-{
-	for(int i = 0; i < bm->bench_num; i++) {
-		bench_t* bench = &bm->bench[i];
-		if (bench->type == TRACE)
-			do_bench_with_trace(i);
-		else
-			do_bench_with_synth(i);
-	}
-	return;
-}
-
-
 extern bool force_write_start;
 bool bench_is_finish_n(volatile int n){
 	if(bm->bench_mon[n].completed_ops==bm->bench_mon[n].tot_ops){
 		bm->bench_mon[n].finish=true;
 		return true;
 	}
-	
-	if(n+1==bm->bench_num){
+	if(n+1==bm->n_fill){
 	//	force_write_start=true;	
 		write_stop=0;
 	}
 	return false;
 }
-
 bool bench_is_finish(){
-	for(int i=0; i<bm->bench_num; i++){
+	for(int i=0; i<bm->n_fill; i++){
 		if(!bench_is_finish_n(i)){
 			return false;
 		}
@@ -372,7 +412,7 @@ bool bench_is_finish(){
 void bench_print(){
 	bench_stat_t *bdata=NULL;
 	bench_monitor_t *_m=NULL;
-	for(int i=0; i<bm->bench_num; i++){
+	for(int i=0; i<bm->n_fill; i++){
 		printf("\n\n");
 		_m=&bm->bench_mon[i];
 		bdata=&bm->bench_stat[i];
@@ -552,123 +592,89 @@ void bench_reap_nostart(request *const req){
 	pthread_mutex_unlock(&bench_lock);
 }
 
-
-// call-back function 
 void bench_reap_data(request *const req,lower_info *li){
 	//for cdf
 	measure_calc(&req->latency_checker);
 
 	pthread_mutex_lock(&bench_lock);
-
 	if(!req){ 
 		pthread_mutex_unlock(&bench_lock);
 		return;
 	}
+	int idx=req->mark;
+	bench_monitor_t *_m=&bm->bench_mon[idx];
+	bench_stat_t *_data=&bm->bench_stat[idx];
 
-	// identify op  
-	int idx = req->mark;
-	bench_monitor_t *bmon = &bm->bench_mon[idx];
-	bench_stat_t *bstat = &bm->bench_stat[idx];
-
-	if(req->type == FS_GET_T || req->type == FS_NOTFOUND_T){
-		bench_update_typetime(bstat, req->type_ftl, req->type_lower,req->latency_checker.micro_time);
+	if(req->type==FS_GET_T || req->type==FS_NOTFOUND_T){
+		bench_update_typetime(_data, req->type_ftl, req->type_lower,req->latency_checker.micro_time);
 	}
 	
 	if(req->type==FS_NOTFOUND_T){
-		//bm->error_cnt++;
-		bmon->notfound++;
+		bm->error_cnt++;
 	}
-
-	// completion 
-	bmon->completed_ops++;
-
-	if(bmon->tot_ops == bmon->completed_ops){
-		MA(&bmon->benchTime);
-		bstat->bench = bmon->benchTime;
-		memcpy(&bm->li[idx],li,sizeof(lower_info));
-		li->refresh(li);
-	}
-	if(bmon->completed_ops==bmon->tot_ops/2 && (bmon->type==SEQRW || bmon->type==RANDRW)){
-		MA(&bmon->benchTime);
-		bmon->benchTime2=bmon->benchTime;
-		measure_init(&bmon->benchTime);
-		MS(&bmon->benchTime);
-	}
-
-//	if(bmon->ondemand){
-//		free(bmon->dbody[bmon->completed_ops]);
-	pthread_mutex_unlock(&bench_lock);
-
-
-#if 0
 #ifdef CDF
 	int slot_num=req->latency_checker.micro_time/TIMESLOT;
 	if(req->type==FS_GET_T || req->type==FS_RANGEGET_T){
 		if(slot_num>=1000000/TIMESLOT){
-			bstat->read_cdf[1000000/TIMESLOT]++;
+			_data->read_cdf[1000000/TIMESLOT]++;
 		}
 		else{
-			bstat->read_cdf[slot_num]++;
+			_data->read_cdf[slot_num]++;
 		}
-		if(bmon->completed_ops%1000000==0){
-		//	bench_cdf_print(bmon->completed_ops,bmon->type,bstat);
+		if(_m->completed_ops%1000000==0){
+		//	bench_cdf_print(_m->completed_ops,_m->type,_data);
 		}
 	}
 	else if(req->type==FS_SET_T){
 		if(slot_num>=1000000/TIMESLOT){
-			bstat->write_cdf[1000000/TIMESLOT]++;
+			_data->write_cdf[1000000/TIMESLOT]++;
 		}
 		else{
-			bstat->write_cdf[slot_num]++;
+			_data->write_cdf[slot_num]++;
 		}
 	}
 #endif
-
-	if(bmon->empty){
+	if(_m->empty){
 		if(req->type==FS_GET_T || req->type==FS_RANGEGET_T){
-			bmon->read_cnt++;
-			bstat->read_cnt++;
+			_m->read_cnt++;
+			_data->read_cnt++;
 		}
 		else if(req->type==FS_SET_T){
-			bmon->write_cnt++;
-			bstat->write_cnt++;
+			_m->write_cnt++;
+			_data->write_cnt++;
 		}
-		bmon->completed_ops++;
-		bmon->tot_ops++;
+		_m->completed_ops++;
+		_m->tot_ops++;
 		pthread_mutex_unlock(&bench_lock);
 		return;
 	}
 
-	if(bmon->tot_ops == bmon->completed_ops+1){
-		bstat->bench = bmon->benchTime;
+	if(_m->tot_ops==_m->completed_ops+1){
+		_data->bench=_m->benchTime;
 	}
-	if(bmon->completed_ops+1==bmon->tot_ops/2 && (bmon->type==SEQRW || bmon->type==RANDRW)){
-		MA(&bmon->benchTime);
-		bmon->benchTime2=bmon->benchTime;
-		measure_init(&bmon->benchTime);
-		MS(&bmon->benchTime);
+	if(_m->completed_ops+1==_m->tot_ops/2 && (_m->type==SEQRW || _m->type==RANDRW)){
+		MA(&_m->benchTime);
+		_m->benchTime2=_m->benchTime;
+		measure_init(&_m->benchTime);
+		MS(&_m->benchTime);
 	}
 
 	if(req->type==FS_NOTFOUND_T){
-		bmon->notfound++;
+		_m->notfound++;
 	}
-	if(bmon->tot_ops==bmon->completed_ops+1){
+	if(_m->tot_ops==_m->completed_ops+1){
 #ifdef BENCH
 		memcpy(&bm->li[idx],li,sizeof(lower_info));
 		li->refresh(li);
 #endif
-		MA(&bmon->benchTime);
+		MA(&_m->benchTime);
 	}
-	if(bmon->ondemand){
-		free(bmon->dbody[bmon->completed_ops]);
+	if(_m->ondemand){
+		free(_m->dbody[_m->completed_ops]);
 	}
-	bmon->completed_ops++;
+	_m->completed_ops++;
 	pthread_mutex_unlock(&bench_lock);
-
-#endif
 }
-
-
 void bench_li_print(lower_info* li,bench_monitor_t *m){
 	printf("-----lower_info----\n");
 	printf("[write_op]: %ld\n",li->write_op);

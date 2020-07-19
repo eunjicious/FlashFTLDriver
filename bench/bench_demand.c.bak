@@ -1,0 +1,118 @@
+#include "bench.h"
+#include "../include/types.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include <string.h>
+#include <unistd.h>
+#include <pthread.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+
+extern int32_t write_stop;
+extern bench_master_t *bm;
+extern bool last_ack;
+extern int KEYLENGTH;
+extern int VALUESIZE;
+
+bench_op *bench_make_ondemand(){
+	int idx=bm->n_curr;
+	bench_t *_meta=&bm->bench[idx];
+	bench_monitor_t * _m=&bm->bench_mon[idx];
+	if(!_m->tot_ops){
+		_m->issued_ops=0;
+		_m->completed_ops=0;
+		_m->empty=false;
+		_m->tot_ops=_meta->ops;
+		_m->ondemand=true;
+		_m->type=_meta->type;
+		_m->dbody=(bench_op**)malloc(sizeof(bench_op*)*_meta->ops);
+		measure_init(&_m->benchTime);
+		MS(&_m->benchTime);
+	}
+	
+	bench_op *op=(bench_op*)malloc(sizeof(bench_op));
+	_m->dbody[_m->issued_ops]=op;
+	uint32_t start=_meta->start;
+	uint32_t end=_meta->end;
+	uint32_t t_k=0;
+	switch(_meta->type){
+		case FILLRAND:
+			abort();
+			break;
+		case SEQSET:
+				op->type=FS_SET_T;
+				op->length=LPAGESIZE;
+				t_k=start+(_m->issued_ops%(end-start));
+				break;
+		case SEQGET:
+				op->type=FS_GET_T;
+				op->length=LPAGESIZE;
+				t_k=start+(_m->issued_ops%(end-start));
+				break;
+		case RANDSET:
+				op->type=FS_SET_T;
+				op->length=LPAGESIZE;
+				t_k=start+rand()%(end-start);
+				break;
+		case RANDGET:
+				op->type=FS_GET_T;
+				op->length=LPAGESIZE;
+				t_k=start+rand()%(end-start);
+				break;
+
+		default:
+				break;
+	}
+	op->mark=idx;
+#ifdef KVSSD
+	op->key.len=my_itoa(t_k,&op->key.key);
+#else
+	op->key=t_k;
+#endif
+	return op;
+}
+
+bench_op *get_bench_ondemand(){
+
+	bench_op *op=NULL;
+	bench_monitor_t * _m=&bm->bench_mon[bm->n_curr];
+	if(_m->issued_ops && _m->issued_ops==_m->tot_ops){
+		while(!bench_is_finish_n(bm->n_curr)){
+			write_stop = false;
+        }
+		printf("\rtesting...... [100%%] done!\n");
+		printf("\n");
+        //sleep(5);
+
+		free(_m->dbody);
+		bm->n_curr++;
+		if(bm->n_curr==bm->n_fill)
+			return NULL;
+		_m=&bm->bench_mon[bm->n_curr];
+	}
+
+
+	if(_m->tot_ops<100){
+		float body=_m->tot_ops;
+		float head=_m->issued_ops;
+		printf("\r testing.....[%f%%]",head/body*100);
+	}
+	else if(_m->issued_ops%(_m->tot_ops<100?_m->tot_ops:PRINTPER*(_m->tot_ops/10000))==0){
+#ifdef PROGRESS
+		printf("\r testing...... [%.2lf%%]",(double)(_m->issued_ops)/(_m->tot_ops/100));
+		fflush(stdout);
+#endif
+	}
+
+    if (_m->issued_ops == _m->tot_ops -1) {
+        last_ack = true;
+    }
+
+	op=bench_make_ondemand();
+	_m->issued_ops++;
+	return op;
+}
+
+

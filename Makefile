@@ -75,6 +75,8 @@ CFLAGS +=\
 -DBENCH\
 -DCDF\
 
+
+	#./bench/bench_demand.c
 SRCS +=\
 	./interface/queue.c\
 	./interface/interface.c\
@@ -91,7 +93,6 @@ SRCS +=\
 	./include/data_struct/lru_list.c\
 	./bench/measurement.c\
 	./bench/bench.c\
-	./bench/bench_demand.c\
 	./include/utils/thpool.c\
 	./include/utils/kvssd.c\
 	./include/utils/sha256.c\
