@@ -9,3 +9,6 @@ uint32_t page_read(request *const);
 uint32_t page_write(request *const);
 uint32_t page_remove(request *const);
 void *page_end_req(algo_req*);
+#ifdef EUNJI
+uint32_t page_stat();
+#endif

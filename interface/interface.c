@@ -230,6 +230,12 @@ void *p_main(void *__input){
 		inf_req->isstart=true;
 #endif
 		static bool first_get=true;
+
+
+#ifdef EUNJI
+		printf("[DIRTY_PAGES] %d: %d\n", inter_cnt, mp.algo->stat());
+#endif
+
 		switch(inf_req->type){
 			case FS_GET_T:
 				if(first_get){
@@ -649,6 +655,7 @@ void inf_free(){
 	cl_free(flying);
 	printf("result of ms:\n");
 	printf("---\n");
+
 	for(int i=0; i<1; i++){
 		processor *t=&mp.processors[i];
 		//		pthread_mutex_unlock(&inf_lock);
@@ -656,15 +663,16 @@ void inf_free(){
 			cl_release(inf_cond);
 		}
 		//pthread_detach(t->t_id);
+
 		q_free(t->req_q);
 #ifdef interface_pq
 		q_free(t->req_rq);
 #endif
-
 		pthread_mutex_destroy(&t->flag);
 	}
 	free(mp.processors);
 
+#if 0
 #ifdef BUSE_MEASURE
     printf("infTime : ");
     measure_adding_print(&infTime);
@@ -673,6 +681,7 @@ void inf_free(){
 #endif
 	mp.algo->destroy(mp.li,mp.algo);
 	mp.li->destroy(mp.li);
+#endif
 }
 
 void inf_print_debug(){

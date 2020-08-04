@@ -15,6 +15,9 @@ struct algorithm page_ftl={
 	.read=page_read,
 	.write=page_write,
 	.remove=NULL,
+#ifdef EUNJI
+	.stat=page_stat,
+#endif
 };
 
 uint32_t page_create (lower_info* li,blockmanager *bm,algorithm *algo){
@@ -68,3 +71,10 @@ void *page_end_req(algo_req* input){
 	free(input);
 	return NULL;
 }
+
+#ifdef EUNJI
+uint32_t page_stat() {
+	pm_body *p = (pm_body*)page_ftl.algo_body;
+	return p->dirty_pages; 
+}
+#endif

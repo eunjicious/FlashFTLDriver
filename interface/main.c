@@ -11,11 +11,17 @@
 #include "../include/utils/kvssd.h"
 
 int main(int argc,char* argv[]){
-	/*
-	   to use the custom benchmark setting the first parameter of 'inf_init' set false
-	   if not, set the parameter as true.
-	   the second parameter is not used in anycase.
-	 */
+
+	if (argc < 2) {
+		printf("Usage: ./driver trc_fname\n");
+		printf("E.g.: ./driver ./trace/test.trc\n");
+		return 0;
+	}
+
+	char trc_fname[100];
+	strcpy(trc_fname, argv[1]);
+	//strcpy(trc_fname, "./trace/test.trc");
+
 	inf_init(0,0,0,NULL);
 	
 	/*initialize the cutom bench mark*/
@@ -23,32 +29,12 @@ int main(int argc,char* argv[]){
 
 	/*adding benchmark type for testing*/
 //#ifdef EUNJI
-	char trc_fname[100];
-	strcpy(trc_fname, "./trace/test.trc");
 
 	//bench_add(RANDSET,0,RANGE,RANGE*2, NULL);
 //	bench_add(RANDSET,0,100,200, NULL);
 //	bench_add(TRACE,0,0,0, trc_fname);
 	bench_add(TRACE, 0, RANGE, 0, trc_fname);
 	run_bench();
-
-	// 어차피 get_bench 에서 type 에 따라 다르게 읽어옴. 
-
-#if 0
-
-	bench_t bench;
-	int idx = 0;
-
-	while(bench = get_bench(idx))
-	{
-		
-
-
-	}
-
-#endif
-
- 
 
 #if 0
 	bench_op *op;

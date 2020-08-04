@@ -6,12 +6,29 @@
 
 extern algorithm page_ftl;
 
+// EUNJI 
+uint32_t lba2pno(uint32_t lba) {
+	return lba / MAPPING_ENTRIES_PER_PAGE;
+}
+
 void page_map_create(){
 	pm_body *p=(pm_body*)calloc(sizeof(pm_body),1);
 	p->mapping=(uint32_t*)malloc(sizeof(uint32_t)*_NOP);
+
+	// EUNJI
+#ifdef EUNJI
+	p->dirty = (bool*) calloc (sizeof(bool), MAPPING_PAGES_ALL);
+	p->dirty_pages = 0;
+#endif
+
+	for(uint32_t i = 0; i < _NOP; i++) {
+		p->mapping[i] = i;
+	}
+#if 0
 	for(int i=0;i<_NOP; i++){
 		p->mapping[i]=UINT_MAX;
 	}
+#endif
 	
 	p->reserve=page_ftl.bm->get_segment(page_ftl.bm,true); //reserve for GC
 	p->active=page_ftl.bm->get_segment(page_ftl.bm,false); //now active block for inserted request.
@@ -20,6 +37,7 @@ void page_map_create(){
 
 uint32_t page_map_assign(uint32_t lba){
 	uint32_t res=0;
+	uint32_t pidx=0; // EUNJI
 	pm_body *p=(pm_body*)page_ftl.algo_body;
 
 	if(lba>_NOP){
@@ -49,8 +67,20 @@ retry:
 	/*validate a page*/
 	validate_ppa(res,lba);
 
+
 	/*mapping update*/
 	p->mapping[lba]=res;
+
+#ifdef EUNJI
+	// EUNJI: count dirty pages 
+	pidx = lba2pno(lba);
+
+	if(!p->dirty[pidx]){
+		p->dirty_pages++;
+		p->dirty[pidx] = true;
+	}
+#endif
+
 	return res;
 }
 
@@ -65,11 +95,22 @@ uint32_t page_map_pick(uint32_t lba){
 
 uint32_t page_map_gc_update(uint32_t lba, uint32_t ppa){
 	uint32_t res=0;
+	uint32_t pidx=0; // EUNJI
 	pm_body *p=(pm_body*)page_ftl.algo_body;
 
 	/*when the gc phase, It should get a page from the reserved block*/
 	res=page_ftl.bm->get_page_num(page_ftl.bm,p->reserve);
 	p->mapping[lba]=res;
+
+#ifdef EUNJI
+	// EUNJI: count dirty pages 
+	pidx = lba2pno(lba);
+
+	if(!p->dirty[pidx]){
+		p->dirty_pages++;
+		p->dirty[pidx] = true;
+	}
+#endif
 
 	invalidate_ppa(ppa);
 	validate_ppa(res,lba);

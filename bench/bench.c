@@ -308,7 +308,9 @@ void do_bench_with_trace(int idx)
 
 	while(!(fscanf(fp, "%s %d\n", cmd, &lba) == EOF)) 
 	{
+#ifdef EUNJI_DEBUG
 		printf("%s %d\n", cmd, lba);
+#endif
 		uint32_t key = (lba + bench->start) % (bench->end);
 		uint32_t length = PAGESIZE;
 		int mark = idx;
@@ -385,7 +387,7 @@ void bench_print(){
 		printf("|            bench type:                   |\n");
 		printf("--------------------------------------------\n");
 #ifdef BENCH
-
+#if 0
 		printf("----algorithm----\n");
 		for(int j=0; j<10; j++){
 			printf("[%d~%d(usec)]: %ld\n",j*100,(j+1)*100,bdata->algo_mic_per_u100[j]);
@@ -413,6 +415,7 @@ void bench_print(){
 		avg_usec=total%1000000;
 		printf("[avg_low]: %ld.%ld\n",avg_sec,avg_usec);
 		bench_li_print(&bm->li[i],_m);
+#endif
 #endif
 		printf("\n----summary----\n");
 		if(_m->type==RANDRW || _m->type==SEQRW){
@@ -556,7 +559,9 @@ void bench_reap_nostart(request *const req){
 // call-back function 
 void bench_reap_data(request *const req,lower_info *li){
 	//for cdf
+#ifdef CDF
 	measure_calc(&req->latency_checker);
+#endif
 
 	pthread_mutex_lock(&bench_lock);
 

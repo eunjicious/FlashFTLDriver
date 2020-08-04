@@ -56,6 +56,8 @@ void *q_dequeue(struct queue *q){
 }
 
 void q_free(struct queue *q){
+	if(!q) return;
 	while(q_dequeue(q)){}
+	free(q->head);
 	free(q);
 }

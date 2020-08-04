@@ -73,7 +73,7 @@ CFLAGS +=\
 		 -D_DEFAULT_SOURCE\
 		 -D_BSD_SOURCE\
 -DBENCH\
--DCDF\
+#-DCDF\
 
 
 	#./bench/bench_demand.c

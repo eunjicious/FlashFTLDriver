@@ -42,8 +42,7 @@
 
 #define GIGAUNIT 8L
 #define TOTALSIZE (GIGAUNIT*G)
-//#define OP 80 // overprovisioning
-#define OP 10
+#define OP 80
 #define REALSIZE (512L*G)
 #define DEVSIZE (64L * G)
 #define PAGESIZE (8*K)
@@ -54,12 +53,21 @@
 
 #endif
 
+
 #define LPAGESIZE 8192
 #define BLOCKSIZE (_PPB*PAGESIZE)
-#define _NOP (TOTALSIZE/PAGESIZE)
-#define _NOS (TOTALSIZE/(_PPS*PAGESIZE))
+#define _NOP (TOTALSIZE/PAGESIZE) // number of pages 
+#define _NOS (TOTALSIZE/(_PPS*PAGESIZE)) // number of segments?? 
 #define _NOB (BPS*_NOS)
 #define _RNOS (REALSIZE/(_PPS*PAGESIZE))//real number of segment
+
+// EUNJI
+#define MAPPING_ENTRY_SIZE 8L // bytes 
+#define MAPPING_ENTRIES_PER_PAGE (PAGESIZE/MAPPING_ENTRY_SIZE)
+#define MAPPING_ENTRIES_ALL _NOP 
+#define MAPPING_PAGES_ALL (MAPPING_ENTRIES_ALL/MAPPING_ENTRIES_PER_PAGE)
+
+
 
 #define RANGE ((uint32_t)_NOP*OP/100)
 #define DEVFULL ((uint32_t)TOTALSIZE/LPAGESIZE)
@@ -156,6 +164,8 @@ static inline bool KEYVALCHECK(KEYT a){
 #define interface_pq
 //#define BUSE_MEASURE
 //#define BUSE_ASYNC 0
+
+#define EUNJI
 
 #ifndef __GNUG__
 typedef enum{false,true} bool;

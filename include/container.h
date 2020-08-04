@@ -144,6 +144,7 @@ struct algorithm{
 	uint32_t (*read)(request *const);
 	uint32_t (*write)(request *const);
 	uint32_t (*remove)(request *const);
+	uint32_t (*stat)(); // EUNJI
 #ifdef KVSSD
 	uint32_t (*iter_create)(request *const);
 	uint32_t (*iter_next)(request *const);
